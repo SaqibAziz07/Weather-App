@@ -1,53 +1,97 @@
-const API_KEY = "GNAme2qcoFHTiO2TtfdB1xGHyqsgMeRS";
+const API_KEY = "781b875076a84152972084f8ba1b2493";
 
-function displayWeather(data, forecast, cityName) {
-    document.getElementById("cityName").textContent = cityName;
-    document.getElementById("datetime").textContent = new Date().toLocaleString();
-    document.getElementById("forecast").textContent = data.WeatherText;
-    document.getElementById("icon").src = `https://developer.accuweather.com/sites/default/files/${data.WeatherIcon.toString().padStart(2, '0')}-s.png`;
-    document.getElementById("icon").alt = data.WeatherText;
-    document.getElementById("temp").textContent = data.Temperature.Metric.Value + "°C";
-    document.getElementById("minTemp").textContent = forecast.DailyForecasts[0].Temperature.Minimum.Value;
-    document.getElementById("maxTemp").textContent = forecast.DailyForecasts[0].Temperature.Maximum.Value;
-    document.getElementById("realFeel").textContent = data.RealFeelTemperature.Metric.Value + "°C";
-    document.getElementById("humidity").textContent = data.RelativeHumidity + "%";
-    document.getElementById("wind").textContent = data.Wind.Speed.Metric.Value + " km/h";
-    document.getElementById("pressure").textContent = data.Pressure.Metric.Value + " mb";
-
-    document.getElementById("weatherBody").style.display = "block";
-    document.getElementById("weatherInfo").style.display = "flex";
-}
-
+// ================= GET WEATHER =================
 function getWeather(event) {
-    event.preventDefault();
-    const city = document.getElementById("cityInput").value.trim();
-    if (!city) return;
+  event.preventDefault();
 
-    fetch(`https://dataservice.accuweather.com/locations/v1/cities/search?apikey=${API_KEY}&q=${city}`)
+  const city = document.getElementById("cityInput").value.trim();
+  if (!city) return;
+
+  // ---------- CURRENT WEATHER ----------
+  fetch(
+    `https://api.openweathermap.org/data/2.5/weather?q=${city}&units=metric&appid=${API_KEY}`
+  )
+    .then(res => res.json())
+    .then(data => {
+      if (data.cod !== 200) {
+        alert("City not found");
+        return;
+      }
+
+      displayCurrentWeather(data);
+      localStorage.setItem("weatherCity", city);
+
+      // ---------- FORECAST (MIN / MAX) ----------
+      fetch(
+        `https://api.openweathermap.org/data/2.5/forecast?q=${city}&units=metric&appid=${API_KEY}`
+      )
         .then(res => res.json())
-        .then(locationData => {
-            if (!locationData.length) return;
-            const key = locationData[0].Key;
-            const cityName = locationData[0].LocalizedName + ", " + locationData[0].Country.LocalizedName;
-
-            fetch(`https://dataservice.accuweather.com/currentconditions/v1/${key}?apikey=${API_KEY}&details=true`)
-                .then(res => res.json())
-                .then(current => {
-                    fetch(`https://dataservice.accuweather.com/forecasts/v1/daily/1day/${key}?apikey=${API_KEY}&metric=true`)
-                        .then(res => res.json())
-                        .then(forecast => {
-                            displayWeather(current[0], forecast, cityName);
-                            localStorage.setItem("weatherCity", city);
-                        });
-                });
+        .then(forecast => {
+          displayMinMax(forecast);
         });
+        console.log(data);
+        
+    })
+    .catch(err => {
+      console.error(err);
+      alert("Something went wrong");
+    });
 }
 
-// Load previous city on page refresh
-window.onload = function () {
-    const savedCity = localStorage.getItem("weatherCity");
-    if (savedCity) {
-        document.getElementById("cityInput").value = savedCity;
-        document.querySelector(".fas.fa-search").click();
-    }
+// ================= DISPLAY CURRENT =================
+function displayCurrentWeather(data) {
+  document.getElementById("cityName").textContent =
+    `${data.name}, ${data.sys.country}`;
+
+  document.getElementById("datetime").textContent =
+    new Date().toLocaleString();
+
+  document.getElementById("forecast").textContent =
+    data.weather[0].description;
+
+  document.getElementById("icon").src =
+    `https://openweathermap.org/img/wn/${data.weather[0].icon}@2x.png`;
+    
+  document.getElementById("temp").textContent =
+    Math.round(data.main.temp) + "°C";
+
+  document.getElementById("realFeel").textContent =
+    Math.round(data.main.feels_like) + "°C";
+
+  document.getElementById("humidity").textContent =
+    data.main.humidity + "%";
+
+  document.getElementById("wind").textContent =
+    data.wind.speed + " m/s";
+
+  document.getElementById("pressure").textContent =
+    data.main.pressure + " hPa";
+
+  document.getElementById("weatherBody").style.display = "block";
+  document.getElementById("weatherInfo").style.display = "flex";
+}
+
+// ================= DISPLAY MIN / MAX =================
+function displayMinMax(forecast) {
+  const temps = forecast.list
+    .slice(0, 8) 
+    .map(item => item.main.temp);
+
+  const minTemp = Math.min(...temps);
+  const maxTemp = Math.max(...temps);
+
+  document.getElementById("minTemp").textContent =
+    Math.round(minTemp);
+
+  document.getElementById("maxTemp").textContent =
+    Math.round(maxTemp);
+}
+
+// ================= LOAD SAVED CITY =================
+window.onload = () => {
+  const savedCity = localStorage.getItem("weatherCity");
+  if (savedCity) {
+    document.getElementById("cityInput").value = savedCity;
+    getWeather(new Event("submit"));
+  }
 };
